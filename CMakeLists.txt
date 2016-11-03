@@ -1,25 +1,24 @@
 cmake_minimum_required(VERSION 3.5)
-
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/Tools/CMake/modules")
-
-enable_language(C)
-enable_language(CXX)
-
 set_property(GLOBAL PROPERTY DEBUG_CONFIGURATIONS Debug Profile)
 
-if (DURANGO OR ORBIS OR ANDROID)
+set (CryEngine_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+list(APPEND CMAKE_MODULE_PATH "${CryEngine_DIR}/Tools/CMake/modules")
+
+# C/C++ languages required.
+enable_language(C)
+enable_language(CXX)
+# Force C++11 support requirement
+set (CMAKE_CXX_STANDARD 11)
+
+if (DURANGO OR ORBIS OR ANDROID OR LINUX)
 	unset(WIN32)
-	unset(WIN64)	
+	unset(WIN64)
 endif ()
 
-if(WIN32)
-	set(CMAKE_SYSTEM_VERSION 10.0.10586.0)
-	include(${CMAKE_SOURCE_DIR}/Tools/CMake/MSVC-Windows.cmake)
-endif()
-
-if(NOT MSVC)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-endif()
+if (WIN32)  # Either Win32 or Win64
+	set(WINDOWS TRUE)
+	include(Tools/CMake/toolchain/windows/WindowsPC-MSVC.cmake)
+endif(WIN32)
 
 if(NOT ${CMAKE_GENERATOR} MATCHES "Visual Studio")
 	set(valid_configs Debug Profile Release)
@@ -29,32 +28,19 @@ if(NOT ${CMAKE_GENERATOR} MATCHES "Visual Studio")
 	endif()
 endif()
 
-include(${CMAKE_SOURCE_DIR}/Tools/CMake/CopyFilesToBin.cmake)
-
-#set(ANDROID TRUE)
-
-if(ANDROID)
-	unset(WIN32)
-	unset(WIN64)
-	set(OPTION_STATIC_LINKING FALSE)
-	SET(CMAKE_SYSTEM_NAME Android)
-	include(${CMAKE_SOURCE_DIR}/Tools/CMake/Android.cmake)	
-
-endif(ANDROID)
-
-project(CryEngine_CMake_${BUILD_PLATFORM} CXX C)
+set(METADATA_PROJECT_NAME "CryEngine" CACHE STRING "Name of the solution project")
+project(${METADATA_PROJECT_NAME}_CMake_${BUILD_PLATFORM} CXX C)
 
 set(MODULES CACHE INTERNAL "Modules for monolithic builds" FORCE)
+set(GAME_MODULES CACHE INTERNAL "Game Modules for monolithic builds" FORCE)
 
-if (DURANGO OR ORBIS OR ANDROID)
+if (DURANGO OR ORBIS OR ANDROID OR LINUX)
 	# WIN32 Should be unset  again after project( line to work correctly
 	unset(WIN32)
 	unset(WIN64)
 endif ()
 
-if(WIN32)
-	set(WINDOWS TRUE)
-endif()
+set(game_folder CACHE INTERNAL "Game folder used for resource files on Windows" FORCE)
 
 if(LINUX32 OR LINUX64)
 	set(LINUX TRUE)
@@ -66,31 +52,38 @@ option(OPTION_UNITY_BUILD "Enable Unity Build" ON)
 if(WIN32 OR WIN64)
 	option(OPTION_ENABLE_BROFILER "Enable Brofiler profiler support" ON)
 endif()
-option(OPTION_ENABLE_SDK_OCULUS "Enable Oculus SDK" ON)
 
-# Select Game Project
-set(OPTION_GAME_PROJECT "GameSDK" CACHE STRING "What Game project to use")
-set(OPTION_GAME_PROJECT_VALUES "GameSDK" "GameMono" "GameZero")
-set_property(CACHE OPTION_GAME_PROJECT PROPERTY STRINGS ${OPTION_GAME_PROJECT_VALUES})
-list(FIND OPTION_GAME_PROJECT_VALUES ${OPTION_GAME_PROJECT} OPTION_GAME_PROJECT_INDEX)
-if(${OPTION_GAME_PROJECT_INDEX} EQUAL -1)
-	message(FATAL_ERROR "Option ${OPTION_GAME_PROJECT} is not supported, valid entries are ${OPTION_GAME_PROJECT_VALUES}")
+if(WIN64 AND EXISTS "${CryEngine_DIR}/Code/Sandbox")
+	option(OPTION_SANDBOX "Enable Sandbox" ON)
+	if ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
+		set(OPTION_SANDBOX OFF)
+	endif()
+	if(OPTION_SANDBOX)
+		# Sandbox cannot be built in release mode
+		set(CMAKE_CONFIGURATION_TYPES Debug Profile CACHE STRING "Reset the configurations to what we need" FORCE)
+	endif()
 endif()
 
-if(WIN64 AND EXISTS "${CMAKE_SOURCE_DIR}/Code/Sandbox")
-	set(OPTION_SANDBOX "No" CACHE STRING "Enable Sandbox")
-	set_property(CACHE OPTION_SANDBOX PROPERTY STRINGS "No" "Qt" "Legacy")
+option(OPTION_RC "Include RC in the build" OFF)
+option(OPTION_PCH "Enable Precompiled Headers" ON)
+
+#Plugins
+option(PLUGIN_FPSPLUGIN "Frames per second sample plugin" OFF)
+
+option(PLUGIN_SCHEMATYC "Enable Schematyc" ON)
+
+if(WIN32 OR WIN64)
+	option(PLUGIN_VR_OCULUS "Oculus support" ON)
+	option(PLUGIN_VR_OSVR "OSVR support" ON)
+	option(PLUGIN_VR_OPENVR "OpenVR support" ON)
+	option(OPTION_CRYMONO "C# support" OFF)
 endif()
 
-if(WIN64 AND EXISTS "${CMAKE_SOURCE_DIR}/Code/Tools/RC")
-	option(OPTION_RC "Enable Resource Compiler" OFF)
+if (WIN32 OR WIN64)
+	option(OPTION_ENABLE_CRASHRPT "Enable CrashRpt crash reporting library" ON)
 endif()
-
-option(OPTION_PCH "Enable Precompiled Headers" OFF)
-option(OPTION_CRY_EXTENSIONS "Enable CryExtensions" ON)
 
 # Print current project settings
-MESSAGE(STATUS "OPTION_GAME_PROJECT = ${OPTION_GAME_PROJECT}")
 MESSAGE(STATUS "CMAKE_SYSTEM_NAME = ${CMAKE_SYSTEM_NAME}")
 MESSAGE(STATUS "CMAKE_GENERATOR = ${CMAKE_GENERATOR}")
 MESSAGE(STATUS "CMAKE_CONFIGURATION_TYPES = ${CMAKE_CONFIGURATION_TYPES}")
@@ -114,29 +107,17 @@ else()
 	option(OPTION_STATIC_LINKING "Link all CryEngine modules as static libs to single exe" OFF)
 endif()
 
-if (MSVC_VERSION EQUAL 1900) # Visual Studio 2015
-	set(MSVC_LIB_PREFIX vc140)
-	set(QT_DIR ${CMAKE_SOURCE_DIR}/Code/SDKs/Qt/5.6/msvc2015_64)
-elseif (MSVC_VERSION EQUAL 1800) # Visual Studio 2013
-	set(MSVC_LIB_PREFIX vc120)
-	set(QT_DIR ${CMAKE_SOURCE_DIR}/Code/SDKs/Qt/5.6/msvc2013_64)
-elseif (MSVC_VERSION EQUAL 1700) # Visual Studio 2012
-	set(MSVC_LIB_PREFIX "vc110")
-	set(QT_DIR ${CMAKE_SOURCE_DIR}/Code/SDKs/Qt/5.6/msvc2012_64)
-else()
-	set(MSVC_LIB_PREFIX "")
-endif()
-set(Qt5_DIR ${QT_DIR})
-
 # SDK Directory
-set(SDK_DIR ${CMAKE_SOURCE_DIR}/Code/SDKs)
-set(CRY_LIBS_DIR ${CMAKE_SOURCE_DIR}/Code/Libs)
-set(CRY_EXTENSIONS_DIR ${CMAKE_SOURCE_DIR}/Code/CryExtensions)
-#set(DXSDK_DIR ${CMAKE_SOURCE_DIR}/Code/SDKs/DXSDK)
-set(WINSDK_SDK_DIR "${CMAKE_SOURCE_DIR}/Code/SDKs/Microsoft Windows SDK")
+set(SDK_DIR ${CryEngine_DIR}/Code/SDKs)
+set(CRY_LIBS_DIR ${CryEngine_DIR}/Code/Libs)
+set(CRY_EXTENSIONS_DIR ${CryEngine_DIR}/Code/CryExtensions)
+
+set(WINSDK_SDK_DIR "${SDK_DIR}/Microsoft Windows SDK")
 set(WINSDK_SDK_LIB_DIR "${WINSDK_SDK_DIR}/V8.0/Lib/Win8/um")
 set(WINSDK_SDK_INCLUDE_DIR "${WINSDK_SDK_DIR}/V8.0/Include/um")
 
+# Must be included after SDK_DIR definition
+include(${CryEngine_DIR}/Tools/CMake/CopyFilesToBin.cmake)
 
 # custom defines
 set(global_defines "CRYENGINE_DEFINE")
@@ -155,23 +136,21 @@ if (OUTPUT_DIRECTORY)
 	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIRECTORY}")
 	set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIRECTORY}")
 	set(EXECUTABLE_OUTPUT_PATH "${OUTPUT_DIRECTORY}")
+
+	# Make sure the output directory exists
+	file(MAKE_DIRECTORY ${OUTPUT_DIRECTORY})
 endif (OUTPUT_DIRECTORY)
 
 # Bootstrap support
-if(EXISTS ${CMAKE_SOURCE_DIR}/Tools/CMake/Bootstrap.cmake)
-	include(${CMAKE_SOURCE_DIR}/Tools/CMake/Bootstrap.cmake)
+if(EXISTS ${CryEngine_DIR}/Tools/CMake/Bootstrap.cmake)
+	include(${CryEngine_DIR}/Tools/CMake/Bootstrap.cmake)
 	if(OPTION_AUTO_BOOTSTRAP)
 		set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "bootstrap.dat")
 	endif()
 endif()
 
-include(${CMAKE_SOURCE_DIR}/Tools/CMake/CommonMacros.cmake)
-
-include_directories( ${SDK_DIR} )
-include_directories( ${CMAKE_SOURCE_DIR}/Code/CryEngine/CryCommon )
-
-set( BOOST_DIR ${SDK_DIR}/boost )
-include_directories( ${BOOST_DIR} )
+include(${CryEngine_DIR}/Tools/CMake/ConfigureChecks.cmake)
+include(${CryEngine_DIR}/Tools/CMake/CommonMacros.cmake)
 
 if(WIN32)
 	# Common Libriries linked to all targets
@@ -190,10 +169,6 @@ else()
 	# Common Libriries linked to all targets
 	set(COMMON_LIBS )
 endif()
-
-# Serialization library
-include_directories( ${CRY_LIBS_DIR}/yasli )
-include_directories( ${SDK_DIR}/yasli )
 
 # add global defines
 foreach( current_define ${platform_defines} )
@@ -225,9 +200,11 @@ if (NOT (WIN32 OR WIN64 OR LINUX))
 	set(AUDIO_WWISE ON)
 else()
 	if (EXISTS ${SDK_DIR}/Audio/fmod)
+		include(${CMAKE_CURRENT_SOURCE_DIR}/Tools/CMake/modules/fmod.cmake)
 		option(AUDIO_FMOD "FMod sound system support" ON)
 	endif()
 	if (EXISTS ${SDK_DIR}/Audio/portaudio AND EXISTS ${SDK_DIR}/Audio/libsndfile AND (WIN32 OR WIN64))
+		include(${CMAKE_CURRENT_SOURCE_DIR}/Tools/CMake/modules/PortAudio.cmake)
 		option(AUDIO_PORTAUDIO "PortAudio sound system support" ON)
 	endif()
 	option(AUDIO_SDL_MIXER "SDLMixer sound system support" ON)
@@ -255,49 +232,33 @@ elseif (NOT (DURANGO OR ORBIS))
 	OPTION(RENDERER_OPENGL "Renderer for OpenGL" ON)
 endif()
 
-if (EXISTS ${SDK_DIR}/Orbis AND EXISTS ${CMAKE_SOURCE_DIR/}Code/CryEngine/RenderDll/XRenderD3D9/GNM)
-	if(ORBIS)
-		#Force DX11 renderer
-		#option(RENDERER_GNM "GNM renderer" ON)
-	endif()
-	if(WIN64)
-		option(RENDERER_GNM_SHADER_COMPILER "Shader compiler for Orbis" ON)
-	endif()
-endif()
-
 if(ORBIS AND NOT RENDERER_GNM)
 	SET(RENDERER_DX11 ON)
 endif()
 
-
 include(${CMAKE_CURRENT_SOURCE_DIR}/Tools/CMake/modules/SDL2.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/Tools/CMake/modules/PortAudio.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/Tools/CMake/modules/SDL2_mixer.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Tools/CMake/modules/Boost.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/Tools/CMake/modules/ncurses.cmake)
+
+if (OPTION_SANDBOX AND WIN64)
+	# Find Qt before including any plugin subdirectories
+	if (MSVC_VERSION EQUAL 1900) # Visual Studio 2015
+		set(QT_DIR ${CryEngine_DIR}/Code/SDKs/Qt/5.6/msvc2015_64/Qt)
+	elseif (MSVC_VERSION EQUAL 1800) # Visual Studio 2013
+		set(QT_DIR ${CryEngine_DIR}/Code/SDKs/Qt/5.6/msvc2013_64)
+	elseif (MSVC_VERSION EQUAL 1700) # Visual Studio 2012
+		set(QT_DIR ${CryEngine_DIR}/Code/SDKs/Qt/5.6/msvc2012_64)
+	endif()
+	set(Qt5_DIR ${QT_DIR})
+
+	find_package(Qt5 COMPONENTS Core Gui OpenGL Widgets REQUIRED PATHS "${QT_DIR}")
+	set_property(GLOBAL PROPERTY AUTOGEN_TARGETS_FOLDER  "AUTOGEN")
+	set_property(GLOBAL PROPERTY AUTOMOC_TARGETS_FOLDER  "AUTOMOC")
+endif()
 
 # CryEngine
-add_subdirectory(Code/CryEngine/Cry3DEngine)
-add_subdirectory(Code/CryEngine/CryAction)
-add_subdirectory(Code/CryEngine/CryAISystem)
-add_subdirectory(Code/CryEngine/CryAnimation)
-add_subdirectory(Code/CryEngine/CryDynamicResponseSystem)
-add_subdirectory(Code/CryEngine/CryEntitySystem)
-add_subdirectory(Code/CryEngine/CryFont)
-add_subdirectory(Code/CryEngine/CryInput)
-add_subdirectory(Code/CryEngine/CryMovie)
-add_subdirectory(Code/CryEngine/CryNetwork)
-add_subdirectory(Code/CryEngine/CryPhysics)
-add_subdirectory(Code/CryEngine/RenderDll/XRenderD3D9)
-add_subdirectory(Code/CryEngine/CryScriptSystem)
-add_subdirectory(Code/CryEngine/CryAudioSystem)
-add_subdirectory(Code/CryEngine/CryAudioSystem/Common)
-add_subdirectory(Code/CryEngine/CryAudioSystem/implementations/CryAudioImplFmod)
-add_subdirectory(Code/CryEngine/CryAudioSystem/implementations/CryAudioImplPortAudio)
-add_subdirectory(Code/CryEngine/CryAudioSystem/implementations/CryAudioImplSDLMixer)
-add_subdirectory(Code/CryEngine/CryAudioSystem/implementations/CryAudioImplWwise)
-add_subdirectory(Code/CryEngine/CrySystem)
-
-# CryCommon headers only project
-add_subdirectory(Code/CryEngine/CryCommon)
+include ("${CryEngine_DIR}/Tools/CMake/BuildEngine.cmake")
 
 # Shaders custom project
 add_subdirectory(Engine/Shaders)
@@ -308,14 +269,30 @@ if (WIN32)
 	#add_subdirectory(Code/CryExtensions/GameStream)
 endif (WIN32)
 
-if (OPTION_CRY_EXTENSIONS)
-	# CryExtensions
-	#add_subdirectory(Code/CryExtensions/CryDescriptor)
-	#add_subdirectory(Code/CryExtensions/CryDrsCommonElements/Module)
-	add_subdirectory(Code/CryExtensions/CryLobby/Module)
-	#add_subdirectory(Code/CryExtensions/CrySchematyc)
-	#add_subdirectory(Code/CryExtensions/CryLink/Module)
+# CryExtensions
+add_subdirectory(Code/CryExtensions)
+
+if (PLUGIN_SCHEMATYC)
+	add_subdirectory(Code/CryPlugins/CrySensorSystem/Module)
 endif()
+
+# Example plugin
+if (PLUGIN_FPS)
+	add_subdirectory(Code/CryPlugins/CryFramesPerSecond/Module)
+endif()
+# VR plugins
+if (PLUGIN_VR_OCULUS)
+	add_subdirectory(Code/Libs/oculus)
+	add_subdirectory(Code/CryPlugins/VR/CryOculusVR/Module)
+endif()
+if (PLUGIN_VR_OPENVR)	
+	add_subdirectory(Code/CryPlugins/VR/CryOpenVR/Module)
+endif()	
+if (PLUGIN_VR_OSVR)	
+	add_subdirectory(Code/CryPlugins/VR/CryOSVR/Module)
+endif()
+
+
 
 add_custom_target(CE DEPENDS CryPhysics CrySystem CryAction CryRenderD3D11
 		CryFont CryNetwork CryMovie CryInput CryAISystem CryAnimation Cry3DEngine
@@ -324,127 +301,38 @@ add_custom_target(CE DEPENDS CryPhysics CrySystem CryAction CryRenderD3D11
 
 
 # Game
-if (OPTION_GAME_PROJECT STREQUAL "GameSDK")
-	add_subdirectory(Code/GameSDK/GameDll)
+add_subdirectories_glob("Code/Game*")
 
-	set(GAME_RES_DIR Code/GameSDK/Resources)
-	set(GAME_TARGET CryGameSDK)
-endif()
-
-if (OPTION_GAME_PROJECT STREQUAL "GameMono")
-	add_subdirectory(Code/GameMono/GameDll)
-
-	set(GAME_RES_DIR Code/GameMono/Resources)
-	set(GAME_TARGET CryGameMono)
-endif()
-
-if (OPTION_GAME_PROJECT STREQUAL "GameZero")
-	add_subdirectory(Code/GameZero/GameDll)
-
-	set(GAME_RES_DIR Code/GameZero/Resources)
-	set(GAME_TARGET CryGameZero)
-endif()
-
-# Launchers
-if (DURANGO)
-	add_subdirectory(Code/Launcher/DurangoLauncher)
-elseif (ORBIS)
-	add_subdirectory(Code/Launcher/OrbisLauncher)
-elseif (ANDROID)
-	add_subdirectory(Code/Launcher/AndroidLauncher)
-elseif (WIN32)
-	add_subdirectory(Code/Launcher/DedicatedLauncher)
-	add_subdirectory(Code/Launcher/WindowsLauncher)
-endif ()
-
-#Libs
-add_subdirectory(Code/Libs/freetype)
-add_subdirectory(Code/Libs/expat)
-add_subdirectory(Code/Libs/lua)
-add_subdirectory(Code/Libs/zlib)
-add_subdirectory(Code/Libs/lz4)	
-add_subdirectory(Code/Libs/md5)
-add_subdirectory(Code/Libs/tiff)
-add_subdirectory(Code/Libs/lzma)
-add_subdirectory(Code/Libs/lzss)
-add_subdirectory(Code/Libs/bigdigits)
-add_subdirectory(Code/Libs/strophe)
-add_subdirectory(Code/Libs/yasli)
-add_subdirectory(Code/Libs/tomcrypt)
-add_subdirectory(Code/Libs/prt)
-add_subdirectory(Code/Libs/python)
-add_subdirectory(Code/Libs/jsmn)
-add_subdirectory(Code/Libs/vco)
-
-if (OPTION_ENABLE_SDK_OCULUS)
-	add_subdirectory(Code/Libs/oculus)
-elseif()
-	add_definitions(-DEXCLUDE_OCULUS_SDK)
+if (OPTION_CRYMONO)
+	add_subdirectory(Code/CryManaged/CryMonoBridge)
+	add_subdirectory(Code/CryManaged/CESharp)
 endif()
 
 # Sandbox Editor
 if (OPTION_SANDBOX AND WIN64)
-	MESSAGE(STATUS "Include ${OPTION_SANDBOX} Sandbox Editor")
-	find_package(Qt5 COMPONENTS Core Gui OpenGL Widgets REQUIRED PATHS "${QT_DIR}")
-	set(CMAKE_INCLUDE_CURRENT_DIR ON)
-	set(CMAKE_AUTOMOC_RELAXED_MODE TRUE)
-	set(CMAKE_AUTOMOC ON)
-	set(CMAKE_AUTORCC ON)
-	set_property(GLOBAL PROPERTY AUTOGEN_TARGETS_FOLDER  "AUTOGEN")
-	set_property(GLOBAL PROPERTY AUTOMOC_TARGETS_FOLDER  "AUTOMOC")	
-
-	if (OPTION_SANDBOX STREQUAL "Qt")
-		set(EDITOR_DIR "${CMAKE_SOURCE_DIR}/Code/Sandbox/EditorQt" )
-		add_subdirectory(Code/Sandbox/EditorQt)
-		add_subdirectory(Code/Sandbox/Plugins/3DConnexionPlugin)	
-		add_subdirectory(Code/Sandbox/Plugins/EditorConsole)
-		add_subdirectory(Code/CryExtensions/CryLink/EditorPlugin)
-		
-		add_custom_target(GameAndTools DEPENDS ${GAME_TARGET} Sandbox)
-	elseif(OPTION_SANDBOX STREQUAL "Legacy")
-		set(EDITOR_DIR "${CMAKE_SOURCE_DIR}/Code/Sandbox/Editor" )
-		add_subdirectory(Code/Sandbox/Editor)
-
-		add_custom_target(GameAndTools DEPENDS ${GAME_TARGET} SandboxLegacy)
-	endif()
-
-	add_subdirectory(Code/Sandbox/Plugins/EditorCommon)
-
-	add_subdirectory(Code/Sandbox/Plugins/CryDesigner)	
-	add_subdirectory(Code/Sandbox/Plugins/EditorAudioControlsEditor)
-	add_subdirectory(Code/Sandbox/Plugins/EditorAudioControlsEditor/common)
-	if(AUDIO_FMOD)
-		add_subdirectory(Code/Sandbox/Plugins/EditorAudioControlsEditor/EditorFmod)
-	endif()
-	if(AUDIO_SDL_MIXER)
-		add_subdirectory(Code/Sandbox/Plugins/EditorAudioControlsEditor/EditorSDLMixer)
-	endif()
-	if (AUDIO_WWISE)
-		add_subdirectory(Code/Sandbox/Plugins/EditorAudioControlsEditor/EditorWwise)
-	endif()	
-	add_subdirectory(Code/Sandbox/Plugins/EditorAnimation)
-	add_subdirectory(Code/Sandbox/Plugins/EditorDynamicResponseSystem)
-	add_subdirectory(Code/Sandbox/Plugins/EditorEnvironment)
-	add_subdirectory(Code/Sandbox/Plugins/EditorParticle)
-	add_subdirectory(Code/Sandbox/Plugins/EditorTrackView)
-	add_subdirectory(Code/Sandbox/Plugins/FbxPlugin)
-	add_subdirectory(Code/Sandbox/Plugins/MeshImporter)
-	add_subdirectory(Code/Sandbox/Plugins/PerforcePlugin)
+	MESSAGE(STATUS "Include Sandbox Editor")
+	include ("${CryEngine_DIR}/Tools/CMake/BuildSandbox.cmake")
 endif()
 
-# Resource Compiler
-if (OPTION_RC AND WIN64)
-	MESSAGE(STATUS "Include Resource Compiler")
-	add_subdirectory(Code/Libs/alembic)
-	add_subdirectory(Code/Libs/ilmbase)
-	add_subdirectory(Code/Libs/hdf5)
-	add_subdirectory(Code/Libs/szip)	
-	add_subdirectory(Code/Tools/RC/ResourceCompiler)
-	add_subdirectory(Code/Tools/RC/ResourceCompilerABC)
-	add_subdirectory(Code/Tools/RC/ResourceCompilerImage)
-	add_subdirectory(Code/Tools/RC/ResourceCompilerPC)
-	add_subdirectory(Code/Tools/RC/ResourceCompilerXML)
+# UQS: Optional plugin; option PLUGIN_CRYUQS to enable/disable it resides in its own sub directory
+add_subdirectory(Code/CryPlugins/CryUQS)
+
+if(WIN64 AND EXISTS "${CryEngine_DIR}/Code/Tools/ShaderCacheGen/ShaderCacheGen")
+	option(OPTION_SHADERCACHEGEN "Build the shader cache generator." OFF)
 endif()
+
+if (OPTION_SHADERCACHEGEN)
+	add_subdirectory(Code/Tools/ShaderCacheGen/ShaderCacheGen)
+endif()
+
+if (OPTION_RC AND EXISTS "${CryEngine_DIR}/Code/Tools/rc")
+	include(ExternalProject)
+	ExternalProject_Add(RC
+		SOURCE_DIR "${CryEngine_DIR}/Code/Tools/rc"
+		INSTALL_COMMAND echo "Skipping install"
+	)
+endif()
+
 set(CMAKE_INSTALL_MESSAGE LAZY)
 install(FILES Tools/CMake/modules/CryCommonConfig.cmake DESTINATION share/cmake)
 install(FILES Tools/CMake/modules/CryActionConfig.cmake DESTINATION share/cmake)

@@ -1815,10 +1815,10 @@ public:
 						// start coop animation
 
 						// get the actors for both entities
-						IActor* pActor01 = reinterpret_cast<IActor*>(gEnv->pGame->GetIGameFramework()->GetIActorSystem()->GetActor(iEntityID_01));
-						IActor* pActor02 = reinterpret_cast<IActor*>(gEnv->pGame->GetIGameFramework()->GetIActorSystem()->GetActor(iEntityID_02));
-						IActor* pActor03 = reinterpret_cast<IActor*>(gEnv->pGame->GetIGameFramework()->GetIActorSystem()->GetActor(iEntityID_03));
-						IActor* pActor04 = reinterpret_cast<IActor*>(gEnv->pGame->GetIGameFramework()->GetIActorSystem()->GetActor(iEntityID_04));
+						IActor* pActor01 = reinterpret_cast<IActor*>(gEnv->pGameFramework->GetIActorSystem()->GetActor(iEntityID_01));
+						IActor* pActor02 = reinterpret_cast<IActor*>(gEnv->pGameFramework->GetIActorSystem()->GetActor(iEntityID_02));
+						IActor* pActor03 = reinterpret_cast<IActor*>(gEnv->pGameFramework->GetIActorSystem()->GetActor(iEntityID_03));
+						IActor* pActor04 = reinterpret_cast<IActor*>(gEnv->pGameFramework->GetIActorSystem()->GetActor(iEntityID_04));
 						CRY_ASSERT(pActor01);
 						if (!pActor01)
 							return;
@@ -1837,7 +1837,7 @@ public:
 						bool bForceStart = GetPortBool(pActInfo, eIN_FORCESTART);
 						bool bLooping = GetPortBool(pActInfo, eIN_LOOP);
 						EAlignmentRef eAlignment = static_cast<EAlignmentRef>(GetPortInt(pActInfo, eIN_ALIGNMENTTYPE));
-						COMPILE_TIME_ASSERT(eAF_Max == 5);   // change this flowGraph node here and at the inputs if new alignment types are added
+						static_assert(eAF_Max == 5, "Array size changed, code might need to be updated!");
 
 						bool onlyOneChar = false;
 						if (!pActor02 && !pActor03 && !pActor04)
@@ -1904,11 +1904,11 @@ public:
 								characterParams.push_back(charParams4);
 							}
 
-							m_bRunning = gEnv->pGame->GetIGameFramework()->GetICooperativeAnimationManager()->StartNewCooperativeAnimation(characterParams, generalParams);
+							m_bRunning = gEnv->pGameFramework->GetICooperativeAnimationManager()->StartNewCooperativeAnimation(characterParams, generalParams);
 						}
 						else
 						{
-							m_bRunning = gEnv->pGame->GetIGameFramework()->GetICooperativeAnimationManager()->StartExactPositioningAnimation(charParams1, generalParams);
+							m_bRunning = gEnv->pGameFramework->GetICooperativeAnimationManager()->StartExactPositioningAnimation(charParams1, generalParams);
 						}
 
 						m_bStarted = true;
@@ -1953,10 +1953,10 @@ public:
 	void UpdateOutputs(SActivationInfo* pActInfo)
 	{
 		// Update the Outputs of whether this action has finished or not
-		bool bActor1Busy = gEnv->pGame->GetIGameFramework()->GetICooperativeAnimationManager()->IsActorBusy(m_iEntityID_01);
-		bool bActor2Busy = gEnv->pGame->GetIGameFramework()->GetICooperativeAnimationManager()->IsActorBusy(m_iEntityID_02);
-		bool bActor3Busy = gEnv->pGame->GetIGameFramework()->GetICooperativeAnimationManager()->IsActorBusy(m_iEntityID_03);
-		bool bActor4Busy = gEnv->pGame->GetIGameFramework()->GetICooperativeAnimationManager()->IsActorBusy(m_iEntityID_04);
+		bool bActor1Busy = gEnv->pGameFramework->GetICooperativeAnimationManager()->IsActorBusy(m_iEntityID_01);
+		bool bActor2Busy = gEnv->pGameFramework->GetICooperativeAnimationManager()->IsActorBusy(m_iEntityID_02);
+		bool bActor3Busy = gEnv->pGameFramework->GetICooperativeAnimationManager()->IsActorBusy(m_iEntityID_03);
+		bool bActor4Busy = gEnv->pGameFramework->GetICooperativeAnimationManager()->IsActorBusy(m_iEntityID_04);
 
 		if (m_bStarted)
 		{
@@ -2005,10 +2005,10 @@ public:
 	void StopAnimations(SActivationInfo* pActInfo)
 	{
 		// stop coop animation for all actors
-		IActor* pActor01 = /*static_cast<CActor*>*/ (gEnv->pGame->GetIGameFramework()->GetIActorSystem()->GetActor(m_iEntityID_01));
+		IActor* pActor01 = /*static_cast<CActor*>*/ (gEnv->pGameFramework->GetIActorSystem()->GetActor(m_iEntityID_01));
 		CRY_ASSERT(pActor01);
 
-		gEnv->pGame->GetIGameFramework()->GetICooperativeAnimationManager()->StopCooperativeAnimationOnActor(pActor01->GetAnimatedCharacter());
+		gEnv->pGameFramework->GetICooperativeAnimationManager()->StopCooperativeAnimationOnActor(pActor01->GetAnimatedCharacter());
 
 		ActivateOutput(pActInfo, eOUT_FINISHED01, true);
 		ActivateOutput(pActInfo, eOUT_FINISHED02, true);

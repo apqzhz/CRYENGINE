@@ -19,7 +19,6 @@
 #include "EntitySystem.h"
 #include "EntityObject.h"
 #include <CryMath/GeomQuery.h>
-#include <CryGame/IGame.h>
 #include <CryGame/IGameFramework.h>
 
 #include <Cry3DEngine/I3DEngine.h>
@@ -987,7 +986,7 @@ IEntity* CBreakableManager::CreateObjectAsEntity(IStatObj* pStatObj, IPhysicalEn
 		if ((createParams.nEntitySlotFlagsAdd & ENTITY_SLOT_BREAK_AS_ENTITY_MP) == 0)
 		{
 			// Inform that a new holding entity was created
-			gEnv->pGame->GetIGameFramework()->OnBreakageSpawnedEntity(pEntity, pPhysEnt, pSrcPhysEnt);
+			gEnv->pGameFramework->OnBreakageSpawnedEntity(pEntity, pPhysEnt, pSrcPhysEnt);
 		}
 
 		BreakLogAlways("BREAK: Creating entity, ptr: 0x%p   ID: 0x%08X", pEntity, pEntity->GetId());
@@ -1689,7 +1688,7 @@ void CBreakableManager::HandlePhysicsCreateEntityPartEvent(const EventPhysCreate
 		IRopeRenderNode* pRope = (IRopeRenderNode*)pForeignData;
 		pSrcEntity = g_pIEntitySystem->GetEntityFromID(pRope->GetEntityOwner());
 		SEntitySpawnParams params;
-		params.pClass = m_pEntitySystem->GetClassRegistry()->FindClass("RopeEntity");
+		params.pClass = m_pEntitySystem->GetClassRegistry()->FindClass("Rope");
 		params.nFlags = ENTITY_FLAG_CLIENT_ONLY | ENTITY_FLAG_CASTSHADOW | ENTITY_FLAG_SPAWNED;
 		params.sName = "rope_piece";
 		pNewEntity = (CEntity*)gEnv->pEntitySystem->SpawnEntity(params, false);

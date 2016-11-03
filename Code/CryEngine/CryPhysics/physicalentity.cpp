@@ -94,12 +94,12 @@ CPhysicalEntity::CPhysicalEntity(CPhysicalWorld *pworld, IGeneralMemoryHeap* pHe
 	, m_pStructure(nullptr)
 { 
 	//CPhysicalPlaceholder
-	COMPILE_TIME_ASSERT(CRY_ARRAY_COUNT(m_BBox) == 2);
+	static_assert(CRY_ARRAY_COUNT(m_BBox) == 2, "Invalid array size!");
 	m_BBox[0].zero();
 	m_BBox[1].zero(); 
 	m_iSimClass = 0; 
 	m_iGThunk0 = 0;
-	COMPILE_TIME_ASSERT(CRY_ARRAY_COUNT(m_ig) == 2);
+	static_assert(CRY_ARRAY_COUNT(m_ig) == 2, "Invalid array size!");
 	m_ig[0].x=m_ig[1].x=m_ig[0].y=m_ig[1].y = GRID_REG_PENDING;
 	m_bProcessed = 0;
 	m_id = -1;
@@ -314,6 +314,7 @@ int CPhysicalEntity::SetParams(pe_params *_params, int bThreadSafe)
 #endif
 		Vec3 scale;
 		if ((scale=get_xqs_from_matrices(params->pMtx3x4,params->pMtx3x3, params->pos,params->q,params->scale)).len2()>3.0001f) {
+			WriteLock lock(m_lockUpdate);
 			for(i=0;i<m_nParts;i++) {
 				phys_geometry *pgeom;
 				if (m_parts[i].pPhysGeom!=m_parts[i].pPhysGeomProxy) {
@@ -672,7 +673,7 @@ int CPhysicalEntity::SetParams(pe_params *_params, int bThreadSafe)
 		}
 
 		if (m_flags&pef_traceable && m_ig[0].x==NO_GRID_REG) {
-			m_ig[0].x=m_ig[1].x=m_ig[0].y=m_ig[1].y = GRID_REG_PENDING;
+			m_ig[0].x=m_ig[1].x=m_ig[0].y=m_ig[1].y = m_flags & pef_disabled ? GRID_REG_LAST : GRID_REG_PENDING;
 			if (m_pos.len2()>0)
 				AtomicAdd(&m_pWorld->m_lockGrid,-m_pWorld->RepositionEntity(this,1));
 			RepositionParts();
